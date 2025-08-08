@@ -1,8 +1,10 @@
+
 import React, { useState } from 'react';
 
 interface LoginPageProps {
     onLogin: (email: string, pass: string) => void;
     error: string | null;
+    onGoToPublicForm: () => void;
 }
 
 const LockIcon: React.FC = () => (
@@ -12,7 +14,7 @@ const LockIcon: React.FC = () => (
 );
 
 
-export const LoginPage: React.FC<LoginPageProps> = ({ onLogin, error }) => {
+export const LoginPage: React.FC<LoginPageProps> = ({ onLogin, error, onGoToPublicForm }) => {
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
 
@@ -78,6 +80,18 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLogin, error }) => {
                         </button>
                     </div>
                 </form>
+                <div className="text-center mt-6 pt-6 border-t border-slate-200">
+                    <a
+                        href="#"
+                        onClick={(e) => {
+                            e.preventDefault();
+                            onGoToPublicForm();
+                        }}
+                        className="text-sm font-medium text-brand-blue hover:text-brand-blue-dark transition-colors"
+                    >
+                        New Student? Fill Admission Form
+                    </a>
+                </div>
              </div>
         </div>
     );

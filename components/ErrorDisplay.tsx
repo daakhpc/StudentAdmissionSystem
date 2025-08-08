@@ -3,6 +3,7 @@ import React from 'react';
 
 interface ErrorDisplayProps {
   message: string;
+  suggestion?: string;
 }
 
 const ExclamationIcon: React.FC = () => (
@@ -11,11 +12,11 @@ const ExclamationIcon: React.FC = () => (
     </svg>
 );
 
-export const ErrorDisplay: React.FC<ErrorDisplayProps> = ({ message }) => (
+export const ErrorDisplay: React.FC<ErrorDisplayProps> = ({ message, suggestion }) => (
   <div className="flex flex-col items-center justify-center space-y-4 text-center" role="alert">
     <ExclamationIcon />
     <h3 className="text-xl font-semibold text-red-500">An Error Occurred</h3>
     <p className="text-slate-600 max-w-sm">{message}</p>
-    <p className="text-slate-500 text-sm">Please try signing in again.</p>
+    {suggestion && <p className="text-slate-500 text-sm">{suggestion}</p>}
   </div>
 );

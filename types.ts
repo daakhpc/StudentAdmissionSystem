@@ -70,6 +70,7 @@ export interface Submission {
   nationality: string;
   category: string;
   email: string;
+  optional_phone_number?: string;
   postal_address: Address;
   permanent_address: Address;
   academic_records: AcademicRecord[];

@@ -1,5 +1,6 @@
 {
   "name": "Student Admission Management System",
   "description": "A full-featured student admission portal with a secure login system for the Admin Dashboard. The dashboard provides full CRUD functionality for managing applications, and all data is persisted in a Supabase database.",
-  "requestFramePermissions": []
+  "requestFramePermissions": [],
+  "prompt": ""
 }

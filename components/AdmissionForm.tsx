@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { VerifiedUser, AcademicRecord, Address, DocumentType, Submission } from '../types';
 import { indianStates } from '../data/addressData';
@@ -6,7 +7,7 @@ import { supabase } from '../supabaseClient';
 
 interface AdmissionFormProps {
     user: VerifiedUser;
-    onFormSubmit: (data: Omit<Submission, 'id' | 'created_at'>, editingId?: string) => void;
+    onFormSubmit: (data: Omit<Submission, 'id' | 'created_at'>, editingId?: string) => Promise<void>;
     onCancel: () => void;
     initialData?: Submission;
 }
@@ -32,7 +33,6 @@ const FormInput: React.FC<FormInputProps> = ({ hasError, ...props }) => {
   return <input {...props} className={`${baseClasses} ${stateClasses} ${disabledClasses} ${props.className || ''}`} />;
 };
 
-
 const FormSelect: React.FC<React.SelectHTMLAttributes<HTMLSelectElement>> = (props) => (
      <select {...props} className={`w-full bg-white border border-slate-300 rounded-md p-2 text-slate-900 focus:ring-2 focus:ring-brand-blue focus:border-brand-blue ${props.disabled ? 'bg-slate-100 text-slate-600 cursor-not-allowed' : ''}`} />
 );
@@ -53,6 +53,12 @@ const documentFields: { id: DocumentType, label: string }[] = [
 ];
 
 export const AdmissionForm: React.FC<AdmissionFormProps> = ({ user, onFormSubmit, onCancel, initialData }) => {
+    const [currentStep, setCurrentStep] = useState(1);
+    const totalSteps = 5;
+    
+    const [isSubmitting, setIsSubmitting] = useState(false);
+    const [submitError, setSubmitError] = useState<string | null>(null);
+
     const [isEditing, setIsEditing] = useState(false);
     
     // Form state initialization
@@ -68,6 +74,7 @@ export const AdmissionForm: React.FC<AdmissionFormProps> = ({ user, onFormSubmit
     const [nationality, setNationality] = useState('Indian');
     const [category, setCategory] = useState('');
     const [email, setEmail] = useState('');
+    const [optionalPhoneNumber, setOptionalPhoneNumber] = useState('');
     const [postalAddress, setPostalAddress] = useState<Address>({ line: '', state: '', district: '' });
     const [permanentAddress, setPermanentAddress] = useState<Address>({ line: '', state: '', district: '' });
     const [isSameAddress, setIsSameAddress] = useState(false);
@@ -105,6 +112,7 @@ export const AdmissionForm: React.FC<AdmissionFormProps> = ({ user, onFormSubmit
             setNationality(initialData.nationality);
             setCategory(initialData.category);
             setEmail(initialData.email);
+            setOptionalPhoneNumber(initialData.optional_phone_number || '');
             setPostalAddress(initialData.postal_address);
             if (JSON.stringify(initialData.postal_address) === JSON.stringify(initialData.permanent_address)) {
                 setIsSameAddress(true);
@@ -235,7 +243,7 @@ export const AdmissionForm: React.FC<AdmissionFormProps> = ({ user, onFormSubmit
         }));
     };
 
-    const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
+    const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
         e.preventDefault();
         const isAadharValid = validateAadhar();
         if (!declaration) {
@@ -247,6 +255,9 @@ export const AdmissionForm: React.FC<AdmissionFormProps> = ({ user, onFormSubmit
             return;
         }
 
+        setIsSubmitting(true);
+        setSubmitError(null);
+
         const collectedData: Omit<Submission, 'id' | 'created_at'> = {
             submission_id: initialData?.submission_id || Math.floor(100000 + Math.random() * 900000).toString(),
             user_data: user,
@@ -256,7 +267,8 @@ export const AdmissionForm: React.FC<AdmissionFormProps> = ({ user, onFormSubmit
             mother_name: motherName,
             aadhar_number: aadharNumber,
             photo_url: photoUrl,
-            sex, dob, nationality, category, email, 
+            sex, dob, nationality, category, email,
+            optional_phone_number: optionalPhoneNumber,
             postal_address: postalAddress,
             permanent_address: isSameAddress ? postalAddress : permanentAddress,
             academic_records: academicRecords, 
@@ -264,8 +276,28 @@ export const AdmissionForm: React.FC<AdmissionFormProps> = ({ user, onFormSubmit
             declaration,
         };
         
-        onFormSubmit(collectedData, initialData?.id);
+        try {
+            await onFormSubmit(collectedData, initialData?.id);
+            // On success, the calling component now handles navigation.
+        } catch (err) {
+            const msg = err instanceof Error ? err.message : "An unknown error occurred during submission.";
+            setSubmitError(msg);
+        } finally {
+            setIsSubmitting(false);
+        }
     };
+    
+    const nextStep = () => {
+        window.scrollTo(0, 0); // Scroll to top on step change
+        setCurrentStep(prev => Math.min(prev + 1, totalSteps));
+    };
+
+    const prevStep = () => {
+        window.scrollTo(0, 0); // Scroll to top on step change
+        setCurrentStep(prev => Math.max(prev - 1, 1));
+    };
+
+    const steps = ["Personal", "Address", "Academics", "Documents", "Declaration"];
 
     return (
         <form onSubmit={handleSubmit} className="w-full space-y-8 text-left">
@@ -274,134 +306,183 @@ export const AdmissionForm: React.FC<AdmissionFormProps> = ({ user, onFormSubmit
                     <div className="text-white text-lg flex items-center gap-4"><div className="w-8 h-8 border-4 border-dashed rounded-full animate-spin border-white"></div> Uploading file...</div>
                 </div>
             )}
-            <div className="text-center mb-4">
+            <div className="text-center">
                 <h1 className="text-3xl font-bold text-slate-900">{isEditing ? 'Edit Application' : 'Admission Form'}</h1>
                 <p className="text-slate-600 mt-2">{isEditing ? `Editing submission ID: ${initialData?.submission_id}` : 'Please fill out the details below.'}</p>
             </div>
-
-            <fieldset>
-                <legend className="text-xl font-semibold text-slate-900 mb-4 border-b border-slate-200 pb-2 w-full">Course Selection</legend>
-                 <div className="space-y-2">
-                    {['Electrician (2 Year Diploma)', 'HSI (Health & Sanitary Inspector 1 Year Diploma)', 'DHP (2 Year Diploma)'].map(c => (
-                        <div key={c} className="flex items-center gap-x-3">
-                            <input id={c} name="course" type="radio" value={c} className="h-4 w-4 border-slate-400 text-brand-blue focus:ring-brand-blue" checked={course === c} onChange={e => setCourse(e.target.value)} />
-                            <label htmlFor={c} className="block text-sm font-medium leading-6 text-slate-800">{c}</label>
-                        </div>
-                    ))}
+            
+             <div className="mb-8 p-4 border rounded-lg bg-slate-50/50">
+                <div className="flex items-start">
+                    {steps.map((step, index) => {
+                        const stepNumber = index + 1;
+                        const isCompleted = currentStep > stepNumber;
+                        const isActive = currentStep === stepNumber;
+                        return (
+                            <React.Fragment key={step}>
+                                <div className="flex flex-col items-center flex-shrink-0 w-20">
+                                    <div className={`w-10 h-10 mx-auto rounded-full flex items-center justify-center text-lg font-bold transition-colors ${isActive ? 'bg-brand-blue text-white shadow-lg' : isCompleted ? 'bg-green-500 text-white' : 'bg-slate-200 text-slate-500'}`}>
+                                        {isCompleted ? '✓' : stepNumber}
+                                    </div>
+                                    <p className={`mt-2 text-center text-xs sm:text-sm break-words ${isActive ? 'text-brand-blue font-semibold' : 'text-slate-500'}`}>{step}</p>
+                                </div>
+                                {stepNumber < steps.length && <div className={`flex-1 h-1 rounded mt-5 mx-2 ${isCompleted ? 'bg-green-500' : 'bg-slate-200'}`}></div>}
+                            </React.Fragment>
+                        );
+                    })}
                 </div>
-            </fieldset>
+            </div>
 
-            <fieldset>
-                <legend className="text-xl font-semibold text-slate-900 mb-4 border-b border-slate-200 pb-2 w-full">Personal Details</legend>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                    <div className="md:col-span-2 space-y-6">
-                        <FormField label="Verified Phone Number"><FormInput type="text" value={phoneNumber} readOnly /></FormField>
-                        <FormField label="Name of Candidate"><FormInput type="text" value={candidateName} onChange={e => setCandidateName(e.target.value)} required /></FormField>
-                        <FormField label="Father's Name"><FormInput type="text" value={fatherName} onChange={e => setFatherName(e.target.value)} required /></FormField>
-                        <FormField label="Mother's Name"><FormInput type="text" value={motherName} onChange={e => setMotherName(e.target.value)} required /></FormField>
-                        <FormField label="Aadhar Number (12 Digits)">
-                            <FormInput type="text" value={aadharNumber} onChange={handleAadharChange} onBlur={validateAadhar} maxLength={12} hasError={!!aadharError} required />
-                            {aadharError && <p className="text-red-600 text-xs mt-1">{aadharError}</p>}
-                        </FormField>
+            <div style={{ display: currentStep === 1 ? 'block' : 'none' }}>
+                <fieldset>
+                    <legend className="text-xl font-semibold text-slate-900 mb-4 border-b border-slate-200 pb-2 w-full">Course Selection</legend>
+                    <div className="space-y-2">
+                        {['Electrician (2 Year Diploma)', 'HSI (Health & Sanitary Inspector 1 Year Diploma)', 'DHP (2 Year Diploma)'].map(c => (
+                            <div key={c} className="flex items-center gap-x-3">
+                                <input id={c} name="course" type="radio" value={c} className="h-4 w-4 border-slate-400 text-brand-blue focus:ring-brand-blue" checked={course === c} onChange={e => setCourse(e.target.value)} />
+                                <label htmlFor={c} className="block text-sm font-medium leading-6 text-slate-800">{c}</label>
+                            </div>
+                        ))}
                     </div>
-                    <div className="flex flex-col items-center justify-center bg-slate-50 rounded-lg p-4">
-                        <div className="w-32 h-40 border-2 border-dashed border-slate-300 flex items-center justify-center rounded-md overflow-hidden">
-                           {photoUrl ? <img src={photoUrl} alt="Photograph Preview" className="w-full h-full object-cover" /> : <span className="text-slate-500 text-center text-sm p-2">Passport Photo</span>}
+                </fieldset>
+
+                <fieldset className="mt-8">
+                    <legend className="text-xl font-semibold text-slate-900 mb-4 border-b border-slate-200 pb-2 w-full">Personal Details</legend>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                        <div className="md:col-span-2 space-y-6">
+                            <FormField label="Verified Phone Number"><FormInput type="text" value={phoneNumber} readOnly /></FormField>
+                            <FormField label="Optional Phone Number">
+                                <div className="flex">
+                                    <span className="inline-flex items-center px-3 rounded-l-md border border-r-0 border-slate-300 bg-slate-50 text-slate-500 text-sm">+91</span>
+                                    <FormInput type="text" value={optionalPhoneNumber} onChange={e => setOptionalPhoneNumber(e.target.value.replace(/[^0-9]/g, ''))} maxLength={10} placeholder="10-digit mobile number" className="rounded-l-none" />
+                                </div>
+                            </FormField>
+                            <FormField label="Name of Candidate"><FormInput type="text" value={candidateName} onChange={e => setCandidateName(e.target.value)} required /></FormField>
+                            <FormField label="Father's Name"><FormInput type="text" value={fatherName} onChange={e => setFatherName(e.target.value)} required /></FormField>
+                            <FormField label="Mother's Name"><FormInput type="text" value={motherName} onChange={e => setMotherName(e.target.value)} required /></FormField>
+                            <FormField label="Aadhar Number (12 Digits)">
+                                <FormInput type="text" value={aadharNumber} onChange={handleAadharChange} onBlur={validateAadhar} maxLength={12} hasError={!!aadharError} required />
+                                {aadharError && <p className="text-red-600 text-xs mt-1">{aadharError}</p>}
+                            </FormField>
                         </div>
-                        <label htmlFor="photograph" className="mt-2 text-sm text-brand-blue hover:text-brand-blue-dark cursor-pointer">
-                            Upload Photo
-                            <input id="photograph" type="file" className="sr-only" accept="image/*" onChange={handlePhotoChange}/>
+                        <div className="flex flex-col items-center justify-center bg-slate-50 rounded-lg p-4">
+                            <div className="w-32 h-40 border-2 border-dashed border-slate-300 flex items-center justify-center rounded-md overflow-hidden">
+                                {photoUrl ? <img src={photoUrl} alt="Photograph Preview" className="w-full h-full object-cover" /> : <span className="text-slate-500 text-center text-sm p-2">Passport Photo</span>}
+                            </div>
+                            <label htmlFor="photograph" className="mt-2 text-sm text-brand-blue hover:text-brand-blue-dark cursor-pointer">Upload Photo<input id="photograph" type="file" className="sr-only" accept="image/*" onChange={handlePhotoChange} /></label>
+                        </div>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mt-6">
+                        <FormField label="Sex"><FormSelect value={sex} onChange={e => setSex(e.target.value)} required><option value="">Select...</option><option>Male</option><option>Female</option></FormSelect></FormField>
+                        <FormField label="Date of Birth"><FormInput type="date" value={dob} onChange={e => setDob(e.target.value)} required /></FormField>
+                        <FormField label="Nationality"><FormInput type="text" value={nationality} onChange={e => setNationality(e.target.value)} required /></FormField>
+                        <FormField label="Category"><FormSelect value={category} onChange={e => setCategory(e.target.value)} required><option value="">Select...</option><option>General</option><option>OBC</option><option>SC</option><option>ST</option><option>MIN</option></FormSelect></FormField>
+                        <FormField label="Email"><FormInput type="email" value={email} onChange={e => setEmail(e.target.value)} required /></FormField>
+                    </div>
+                </fieldset>
+            </div>
+
+            <div style={{ display: currentStep === 2 ? 'block' : 'none' }}>
+                <fieldset>
+                    <legend className="text-xl font-semibold text-slate-900 mb-4 border-b border-slate-200 pb-2 w-full">Address Details</legend>
+                    <div className="space-y-6">
+                        <div className="p-4 border border-slate-200 rounded-lg">
+                            <h3 className="text-md font-semibold text-slate-800 mb-3">Postal Address</h3>
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                <div className="md:col-span-3"><FormField label="Address Line"><FormInput type="text" value={postalAddress.line} onChange={e => handleAddressChange('postal', 'line', e.target.value)} required /></FormField></div>
+                                <FormField label="State"><FormSelect value={postalAddress.state} onChange={e => handleAddressChange('postal', 'state', e.target.value)} required><option value="">Select State...</option>{stateNames.map(s => <option key={s} value={s}>{s}</option>)}</FormSelect></FormField>
+                                <FormField label="District"><FormSelect value={postalAddress.district} onChange={e => handleAddressChange('postal', 'district', e.target.value)} disabled={!postalAddress.state} required><option value="">Select District...</option>{postalDistricts.map(d => <option key={d} value={d}>{d}</option>)}</FormSelect></FormField>
+                            </div>
+                        </div>
+                        <div className="flex items-center">
+                            <input id="sameAddress" type="checkbox" className="h-4 w-4 rounded border-gray-300 text-brand-blue focus:ring-brand-blue" checked={isSameAddress} onChange={(e) => setIsSameAddress(e.target.checked)} />
+                            <label htmlFor="sameAddress" className="ml-2 block text-sm text-gray-900">Permanent address is same as postal.</label>
+                        </div>
+                        <div className="p-4 border border-slate-200 rounded-lg">
+                            <h3 className="text-md font-semibold text-slate-800 mb-3">Permanent Address</h3>
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                <div className="md:col-span-3"><FormField label="Address Line"><FormInput type="text" value={permanentAddress.line} onChange={e => handleAddressChange('permanent', 'line', e.target.value)} disabled={isSameAddress} required={!isSameAddress} /></FormField></div>
+                                <FormField label="State"><FormSelect value={permanentAddress.state} onChange={e => handleAddressChange('permanent', 'state', e.target.value)} disabled={isSameAddress} required={!isSameAddress}><option value="">Select State...</option>{stateNames.map(s => <option key={s} value={s}>{s}</option>)}</FormSelect></FormField>
+                                <FormField label="District"><FormSelect value={permanentAddress.district} onChange={e => handleAddressChange('permanent', 'district', e.target.value)} disabled={isSameAddress || !permanentAddress.state} required={!isSameAddress}><option value="">Select District...</option>{permanentDistricts.map(d => <option key={d} value={d}>{d}</option>)}</FormSelect></FormField>
+                            </div>
+                        </div>
+                    </div>
+                </fieldset>
+            </div>
+            
+            <div style={{ display: currentStep === 3 ? 'block' : 'none' }}>
+                <fieldset>
+                    <legend className="text-xl font-semibold text-slate-900 mb-4 border-b border-slate-200 pb-2 w-full">Academic Qualification</legend>
+                    <div className="space-y-4">
+                        {academicRecords.map((rec) => (
+                            <div key={rec.id} className="grid grid-cols-1 md:grid-cols-4 lg:grid-cols-10 gap-2 items-end bg-slate-50 p-3 rounded-lg">
+                                <div className="lg:col-span-1"><FormField label="Exam"><FormSelect value={rec.examPassed} onChange={e => handleAcademicChange(rec.id, 'examPassed', e.target.value)}><option>High School</option><option>Intermediate</option></FormSelect></FormField></div>
+                                <div className="md:col-span-2 lg:col-span-2"><FormField label="Institution"><FormInput type="text" value={rec.institution} onChange={e => handleAcademicChange(rec.id, 'institution', e.target.value)} /></FormField></div>
+                                <div className="md:col-span-2 lg:col-span-2"><FormField label="Board/Univ."><FormSelect value={rec.boardUniv} onChange={e => handleAcademicChange(rec.id, 'boardUniv', e.target.value)}><option value="">Select Board...</option>{indianEducationBoards.map(board => <option key={board} value={board}>{board}</option>)}</FormSelect></FormField></div>
+                                <div className="lg:col-span-1"><FormField label="Year"><FormSelect value={rec.year} onChange={e => handleAcademicChange(rec.id, 'year', e.target.value)}><option value="">Select Year...</option>{years.map(y => <option key={y} value={y}>{y}</option>)}</FormSelect></FormField></div>
+                                <div className="lg:col-span-1"><FormField label="Max Marks"><FormInput type="number" value={rec.maxMarks} onChange={e => handleAcademicChange(rec.id, 'maxMarks', e.target.value)} /></FormField></div>
+                                <div className="lg:col-span-1"><FormField label="Obtained"><FormInput type="number" value={rec.obtainedMarks} onChange={e => handleAcademicChange(rec.id, 'obtainedMarks', e.target.value)} /></FormField></div>
+                                <div className="lg:col-span-2 flex items-end gap-2">
+                                    <div className="flex-grow"><FormField label="%"><FormInput type="text" value={rec.percentage} readOnly /></FormField></div>
+                                    <button type="button" onClick={() => removeAcademicRecord(rec.id)} className="h-10 w-10 flex-shrink-0 bg-red-500/80 hover:bg-red-600 text-white font-bold rounded-md disabled:opacity-50 disabled:cursor-not-allowed" disabled={academicRecords.length <= 1}>-</button>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                    <button type="button" onClick={addAcademicRecord} className="mt-4 px-4 py-2 bg-brand-blue hover:bg-brand-blue-dark text-white font-semibold rounded-md text-sm">+ Add Row</button>
+                </fieldset>
+            </div>
+            
+            <div style={{ display: currentStep === 4 ? 'block' : 'none' }}>
+                <fieldset>
+                    <legend className="text-xl font-semibold text-slate-900 mb-4 border-b border-slate-200 pb-2 w-full">Document Uploads (Optional)</legend>
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                        {documentFields.map((doc) => (
+                            <div key={doc.id} className="bg-slate-50 p-4 rounded-lg flex flex-col items-center text-center">
+                                <h4 className="font-semibold text-slate-800 mb-2 h-10 flex items-center">{doc.label}</h4>
+                                <div className="w-full h-32 border-2 border-dashed border-slate-300 rounded-md flex items-center justify-center overflow-hidden bg-white">
+                                    {documentsUrls[doc.id] ? <img src={documentsUrls[doc.id]} alt={`${doc.label} Preview`} className="w-full h-full object-contain" /> : <UploadIcon />}
+                                </div>
+                                <label htmlFor={doc.id} className="mt-3 inline-block bg-white hover:bg-slate-100 text-slate-700 text-sm font-medium py-2 px-4 border border-slate-300 rounded-md shadow-sm cursor-pointer">Choose File<input id={doc.id} type="file" className="sr-only" accept="image/*" onChange={(e) => handleDocumentChange(e, doc.id)} /></label>
+                            </div>
+                        ))}
+                    </div>
+                </fieldset>
+            </div>
+
+            <div style={{ display: currentStep === 5 ? 'block' : 'none' }}>
+                <fieldset>
+                    <legend className="text-xl font-semibold text-slate-900 mb-4 border-b border-slate-200 pb-2 w-full">Declaration</legend>
+                    <div className="flex items-start space-x-3 bg-slate-50 p-4 rounded-lg">
+                        <input id="declaration" name="declaration" type="checkbox" required className="h-4 w-4 mt-1 border-slate-400 text-brand-blue focus:ring-brand-blue" checked={declaration} onChange={e => setDeclaration(e.target.checked)} />
+                        <label htmlFor="declaration" className="text-slate-700 text-sm">
+                            I hereby declare that I have understood the conditions of eligibility for the programme for which I seek admission. I fulfill the minimum eligibility criteria and I have provided necessary information in this regard. In the event of any information being found incorrect or misleading, my candidature shall be liable to be cancelled by the College at any time and I shall not be entitled to refund any fee submitted by me.
                         </label>
                     </div>
-                </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mt-6">
-                    <FormField label="Sex"><FormSelect value={sex} onChange={e => setSex(e.target.value)} required><option value="">Select...</option><option>Male</option><option>Female</option></FormSelect></FormField>
-                    <FormField label="Date of Birth"><FormInput type="date" value={dob} onChange={e => setDob(e.target.value)} required /></FormField>
-                    <FormField label="Nationality"><FormInput type="text" value={nationality} onChange={e => setNationality(e.target.value)} required /></FormField>
-                    <FormField label="Category"><FormSelect value={category} onChange={e => setCategory(e.target.value)} required><option value="">Select...</option><option>General</option><option>OBC</option><option>SC</option><option>ST</option><option>MIN</option></FormSelect></FormField>
-                    <FormField label="Email"><FormInput type="email" value={email} onChange={e => setEmail(e.target.value)} required /></FormField>
-                </div>
-                
-                 <div className="space-y-6 mt-6">
-                    <div className="p-4 border border-slate-200 rounded-lg">
-                        <h3 className="text-md font-semibold text-slate-800 mb-3">Postal Address</h3>
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                             <div className="md:col-span-3"><FormField label="Address Line"><FormInput type="text" value={postalAddress.line} onChange={e => handleAddressChange('postal', 'line', e.target.value)} required /></FormField></div>
-                            <FormField label="State"><FormSelect value={postalAddress.state} onChange={e => handleAddressChange('postal', 'state', e.target.value)} required><option value="">Select State...</option>{stateNames.map(s => <option key={s} value={s}>{s}</option>)}</FormSelect></FormField>
-                            <FormField label="District"><FormSelect value={postalAddress.district} onChange={e => handleAddressChange('postal', 'district', e.target.value)} disabled={!postalAddress.state} required><option value="">Select District...</option>{postalDistricts.map(d => <option key={d} value={d}>{d}</option>)}</FormSelect></FormField>
+                </fieldset>
+            </div>
+
+            <div className="flex justify-between items-center gap-4 pt-6 border-t border-slate-200">
+                <button type="button" onClick={onCancel} className="px-6 py-3 bg-slate-500 hover:bg-slate-600 text-white font-bold rounded-lg transition-colors">Cancel</button>
+                <div className="flex items-center gap-4">
+                    {currentStep > 1 && (
+                        <button type="button" onClick={prevStep} className="px-6 py-3 bg-slate-200 hover:bg-slate-300 text-slate-800 font-bold rounded-lg transition-colors">Previous</button>
+                    )}
+                    
+                    {currentStep < totalSteps ? (
+                        <button type="button" onClick={nextStep} className="px-6 py-3 bg-brand-blue hover:bg-brand-blue-dark text-white font-bold rounded-lg transition-colors">Next</button>
+                    ) : (
+                        <div className="flex flex-col items-end">
+                            {submitError && (
+                                <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-2 rounded-md mb-2 text-sm text-left" role="alert">
+                                    <strong>Submission Failed:</strong> {submitError}
+                                </div>
+                            )}
+                            <button type="submit" className="px-8 py-3 bg-green-600 hover:bg-green-700 text-white font-bold rounded-lg transition-colors w-full sm:w-auto" disabled={isSubmitting || isUploading}>
+                                {isSubmitting ? 'Saving...' : (isUploading ? 'Uploading...' : (isEditing ? 'Update Application' : 'Submit Application'))}
+                            </button>
                         </div>
-                    </div>
-
-                    <div className="flex items-center">
-                        <input id="sameAddress" type="checkbox" className="h-4 w-4 rounded border-gray-300 text-brand-blue focus:ring-brand-blue" checked={isSameAddress} onChange={(e) => setIsSameAddress(e.target.checked)} />
-                        <label htmlFor="sameAddress" className="ml-2 block text-sm text-gray-900">Permanent address is same as postal.</label>
-                    </div>
-
-                    <div className="p-4 border border-slate-200 rounded-lg">
-                         <h3 className="text-md font-semibold text-slate-800 mb-3">Permanent Address</h3>
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                             <div className="md:col-span-3"><FormField label="Address Line"><FormInput type="text" value={permanentAddress.line} onChange={e => handleAddressChange('permanent', 'line', e.target.value)} disabled={isSameAddress} required={!isSameAddress} /></FormField></div>
-                            <FormField label="State"><FormSelect value={permanentAddress.state} onChange={e => handleAddressChange('permanent', 'state', e.target.value)} disabled={isSameAddress} required={!isSameAddress}><option value="">Select State...</option>{stateNames.map(s => <option key={s} value={s}>{s}</option>)}</FormSelect></FormField>
-                             <FormField label="District"><FormSelect value={permanentAddress.district} onChange={e => handleAddressChange('permanent', 'district', e.target.value)} disabled={isSameAddress || !permanentAddress.state} required={!isSameAddress}><option value="">Select District...</option>{permanentDistricts.map(d => <option key={d} value={d}>{d}</option>)}</FormSelect></FormField>
-                        </div>
-                    </div>
+                    )}
                 </div>
-            </fieldset>
-
-            <fieldset>
-                <legend className="text-xl font-semibold text-slate-900 mb-4 border-b border-slate-200 pb-2 w-full">Academic Qualification</legend>
-                <div className="space-y-4">
-                    {academicRecords.map((rec) => (
-                        <div key={rec.id} className="grid grid-cols-1 md:grid-cols-4 lg:grid-cols-10 gap-2 items-end bg-slate-50 p-3 rounded-lg">
-                            <div className="lg:col-span-1"><FormField label="Exam"><FormSelect value={rec.examPassed} onChange={e => handleAcademicChange(rec.id, 'examPassed', e.target.value)}><option>High School</option><option>Intermediate</option></FormSelect></FormField></div>
-                            <div className="md:col-span-2 lg:col-span-2"><FormField label="Institution"><FormInput type="text" value={rec.institution} onChange={e => handleAcademicChange(rec.id, 'institution', e.target.value)} /></FormField></div>
-                            <div className="md:col-span-2 lg:col-span-2"><FormField label="Board/Univ."><FormSelect value={rec.boardUniv} onChange={e => handleAcademicChange(rec.id, 'boardUniv', e.target.value)}><option value="">Select Board...</option>{indianEducationBoards.map(board => <option key={board} value={board}>{board}</option>)}</FormSelect></FormField></div>
-                            <div className="lg:col-span-1"><FormField label="Year"><FormSelect value={rec.year} onChange={e => handleAcademicChange(rec.id, 'year', e.target.value)}><option value="">Select Year...</option>{years.map(y => <option key={y} value={y}>{y}</option>)}</FormSelect></FormField></div>
-                            <div className="lg:col-span-1"><FormField label="Max Marks"><FormInput type="number" value={rec.maxMarks} onChange={e => handleAcademicChange(rec.id, 'maxMarks', e.target.value)} /></FormField></div>
-                            <div className="lg:col-span-1"><FormField label="Obtained"><FormInput type="number" value={rec.obtainedMarks} onChange={e => handleAcademicChange(rec.id, 'obtainedMarks', e.target.value)} /></FormField></div>
-                            <div className="lg:col-span-2 flex items-end gap-2">
-                                <div className="flex-grow"><FormField label="%"><FormInput type="text" value={rec.percentage} readOnly /></FormField></div>
-                                <button type="button" onClick={() => removeAcademicRecord(rec.id)} className="h-10 w-10 flex-shrink-0 bg-red-500/80 hover:bg-red-600 text-white font-bold rounded-md disabled:opacity-50 disabled:cursor-not-allowed" disabled={academicRecords.length <= 1}>-</button>
-                            </div>
-                        </div>
-                    ))}
-                </div>
-                <button type="button" onClick={addAcademicRecord} className="mt-4 px-4 py-2 bg-brand-blue hover:bg-brand-blue-dark text-white font-semibold rounded-md text-sm">+ Add Row</button>
-            </fieldset>
-
-            <fieldset>
-                <legend className="text-xl font-semibold text-slate-900 mb-4 border-b border-slate-200 pb-2 w-full">Document Uploads (Optional)</legend>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                    {documentFields.map((doc) => (
-                        <div key={doc.id} className="bg-slate-50 p-4 rounded-lg flex flex-col items-center text-center">
-                            <h4 className="font-semibold text-slate-800 mb-2 h-10 flex items-center">{doc.label}</h4>
-                            <div className="w-full h-32 border-2 border-dashed border-slate-300 rounded-md flex items-center justify-center overflow-hidden bg-white">
-                                {documentsUrls[doc.id] ? <img src={documentsUrls[doc.id]} alt={`${doc.label} Preview`} className="w-full h-full object-contain" /> : <UploadIcon />}
-                            </div>
-                            <label htmlFor={doc.id} className="mt-3 inline-block bg-white hover:bg-slate-100 text-slate-700 text-sm font-medium py-2 px-4 border border-slate-300 rounded-md shadow-sm cursor-pointer">
-                                Choose File
-                                <input id={doc.id} type="file" className="sr-only" accept="image/*" onChange={(e) => handleDocumentChange(e, doc.id)} />
-                            </label>
-                        </div>
-                    ))}
-                </div>
-            </fieldset>
-            
-            <fieldset>
-                <legend className="text-xl font-semibold text-slate-900 mb-4 border-b border-slate-200 pb-2 w-full">Declaration</legend>
-                <div className="flex items-start space-x-3 bg-slate-50 p-4 rounded-lg">
-                    <input id="declaration" name="declaration" type="checkbox" required className="h-4 w-4 mt-1 border-slate-400 text-brand-blue focus:ring-brand-blue" checked={declaration} onChange={e => setDeclaration(e.target.checked)} />
-                    <label htmlFor="declaration" className="text-slate-700 text-sm">
-                        I hereby declare that I have understood the conditions of eligibility for the programme for which I seek admission. I fulfill the minimum eligibility criteria and I have provided necessary information in this regard. In the event of any information being found incorrect or misleading, my candidature shall be liable to be cancelled by the College at any time and I shall not be entitled to refund any fee submitted by me.
-                    </label>
-                </div>
-            </fieldset>
-
-            <div className="flex justify-end items-center gap-4 pt-6 border-t border-slate-200">
-                <button type="button" onClick={onCancel} className="px-8 py-3 bg-slate-500 hover:bg-slate-600 text-white font-bold rounded-lg transition-colors">Cancel</button>
-                <button type="submit" className="px-8 py-3 bg-green-600 hover:bg-green-700 text-white font-bold rounded-lg transition-colors" disabled={isUploading}>
-                    {isUploading ? 'Uploading...' : isEditing ? 'Update Application' : 'Submit Application'}
-                </button>
             </div>
         </form>
     );
