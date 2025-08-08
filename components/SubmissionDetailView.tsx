@@ -13,17 +13,17 @@ const AddressIcon = () => <svg xmlns="http://www.w3.org/2000/svg" className="h-4
 
 interface DetailSectionProps { title: string; children: React.ReactNode; }
 const DetailSection: React.FC<DetailSectionProps> = ({ title, children }) => (
-    <fieldset className="border-t border-slate-300 pt-4 mt-6">
-        <legend className="text-lg font-semibold text-slate-800 px-2">{title}</legend>
-        <div className="p-4 space-y-4">{children}</div>
+    <fieldset className="border-t border-slate-300 pt-4 mt-6 print:mt-4 print:pt-2">
+        <legend className="text-lg print:text-base font-semibold text-slate-800 px-2">{title}</legend>
+        <div className="p-4 print:p-0 space-y-4 print:space-y-2">{children}</div>
     </fieldset>
 );
 
 interface DetailItemProps { label: string; value?: string | number | null; }
 const DetailItem: React.FC<DetailItemProps> = ({ label, value }) => (
     <div>
-        <p className="text-sm font-medium text-slate-500">{label}</p>
-        <p className="text-md text-slate-900">{String(value) || 'N/A'}</p>
+        <p>{label}</p>
+        <p>{String(value) || 'N/A'}</p>
     </div>
 );
 
@@ -33,15 +33,15 @@ const documentLabels: Record<DocumentType, string> = {
 };
 
 const PrintHeader = () => (
-    <div className="print:block border-b-2 border-slate-900 pb-4 mb-6 text-slate-900">
-        <div className="text-center mb-4">
-            <h1 className="text-3xl font-bold">Dr APJ Abdul Kalam Educational Institute</h1>
-            <p className="text-slate-700 mt-1 text-base">
+    <div className="print:block border-b-2 border-slate-900 pb-4 mb-6 print:pb-3 print:mb-4 text-slate-900">
+        <div className="text-center mb-4 print:mb-2">
+            <h1 className="text-3xl print:text-2xl font-bold">Dr APJ Abdul Kalam Educational Institute</h1>
+            <p className="text-slate-700 mt-1 text-base print:text-sm">
                 Affiliated with: Homeopathic Medicine Board Lucknow Uttar Pradesh, SCVT Lucknow & NCVT New Delhi
             </p>
         </div>
-        <div className="mt-4 border-t border-slate-300 pt-3 text-xs">
-            <div className="grid grid-cols-2 gap-x-4 gap-y-2">
+        <div className="mt-4 border-t border-slate-300 pt-3 print:pt-2 text-xs">
+            <div className="grid grid-cols-2 gap-x-4 gap-y-2 print:gap-y-1">
                  <div className="flex items-center"><PhoneIcon /><span>Contact No: 8958963106</span></div>
                  <div className="flex items-center"><EmailIcon /><span>Email: daakhpc@gmail.com</span></div>
                  <div className="flex items-center"><WebIcon /><span>Website: www.daakhpc.com</span></div>
@@ -67,14 +67,42 @@ export const SubmissionDetailView: React.FC<SubmissionDetailViewProps> = ({ data
         <div className="w-full text-left">
             <style>{`
                 @media print {
-                    body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-                    body * { visibility: hidden; }
-                    .print-container, .print-container * { visibility: visible; }
-                    .print-container { position: absolute; left: 0; top: 0; width: 100%; padding: 20px; }
-                    .no-print { display: none !important; }
-                    .page-break { page-break-before: always; }
-                    .detail-item-print div { font-size: 11pt; }
-                    .detail-item-print p:first-child { font-size: 9pt; }
+                    body {
+                        -webkit-print-color-adjust: exact;
+                        print-color-adjust: exact;
+                        font-size: 10pt;
+                    }
+                    body * {
+                        visibility: hidden;
+                    }
+                    .print-container, .print-container * {
+                        visibility: visible;
+                    }
+                    .print-container {
+                        position: absolute;
+                        left: 0;
+                        top: 0;
+                        width: 100%;
+                        padding: 1.5cm; /* A4 Margins */
+                    }
+                    .no-print {
+                        display: none !important;
+                    }
+                    .page-break {
+                        page-break-before: always;
+                    }
+                    .detail-item-print div {
+                        line-height: 1.4;
+                    }
+                    .detail-item-print p:first-child { /* Label */
+                        color: #4A5568;
+                        font-size: 8.5pt;
+                        margin-bottom: 2px;
+                    }
+                    .detail-item-print p:last-child { /* Value */
+                        font-weight: 500;
+                        font-size: 10pt;
+                    }
                 }
             `}</style>
 
@@ -92,9 +120,9 @@ export const SubmissionDetailView: React.FC<SubmissionDetailViewProps> = ({ data
             <div className="print-container">
                  <PrintHeader />
 
-                 <div className="text-center my-6">
-                    <h2 className="text-2xl font-bold text-slate-900 underline decoration-slate-400 decoration-2">Application Form</h2>
-                    <p className="text-slate-600 mt-1">Submission ID: {submission_id}</p>
+                 <div className="text-center my-6 print:my-4">
+                    <h2 className="text-2xl print:text-xl font-bold text-slate-900 underline decoration-slate-400 decoration-2">Application Form</h2>
+                    <p className="text-slate-600 mt-1 print:text-sm">Submission ID: {submission_id}</p>
                  </div>
                 
                 <div className="detail-item-print">
@@ -104,7 +132,7 @@ export const SubmissionDetailView: React.FC<SubmissionDetailViewProps> = ({ data
 
                     <DetailSection title="Personal Details">
                         <div className="flex justify-between items-start">
-                             <div className="grid grid-cols-2 gap-x-12 gap-y-4 flex-grow">
+                             <div className="grid grid-cols-2 gap-x-12 gap-y-4 print:gap-x-8 print:gap-y-2 flex-grow">
                                 <DetailItem label="Verified Phone Number" value={formattedPhone} />
                                 {data.optional_phone_number && (
                                     <DetailItem label="Optional Phone Number" value={`+91 ${data.optional_phone_number}`} />
@@ -119,9 +147,9 @@ export const SubmissionDetailView: React.FC<SubmissionDetailViewProps> = ({ data
                                 <DetailItem label="Category" value={data.category} />
                                 <DetailItem label="Email" value={data.email} />
                             </div>
-                            <div className="ml-8 flex-shrink-0">
+                            <div className="ml-8 flex-shrink-0 print:ml-6">
                                 <p className="text-sm font-medium text-slate-500 mb-2 text-center">Passport Photograph</p>
-                                <div className="w-32 h-40 border border-slate-300 rounded-md flex items-center justify-center bg-slate-50 overflow-hidden">
+                                <div className="w-32 h-40 print:w-28 print:h-36 border border-slate-300 rounded-md flex items-center justify-center bg-slate-50 overflow-hidden">
                                    {data.photo_url ? (
                                         <a href={data.photo_url} target="_blank" rel="noopener noreferrer" className="block w-full h-full">
                                             <img src={data.photo_url} alt="Photograph" className="w-full h-full object-cover" />
@@ -133,7 +161,7 @@ export const SubmissionDetailView: React.FC<SubmissionDetailViewProps> = ({ data
                     </DetailSection>
 
                     <DetailSection title="Address Details">
-                        <div className="grid grid-cols-2 gap-x-12">
+                        <div className="grid grid-cols-2 gap-x-12 print:gap-x-8">
                             <div>
                                 <h4 className="font-semibold text-slate-700 mb-2">Postal Address</h4>
                                 <DetailItem label="Address Line" value={data.postal_address.line} />
@@ -150,12 +178,16 @@ export const SubmissionDetailView: React.FC<SubmissionDetailViewProps> = ({ data
                     </DetailSection>
                     
                     <div className="page-break"></div>
+                    
+                    <div className="hidden print:block border-b border-slate-300 pb-2 mb-4 text-sm text-right">
+                        <p>Submission ID: {data.submission_id} - Page 2 of 2</p>
+                    </div>
 
                     <DetailSection title="Academic Qualifications">
                         {data.academic_records.map((rec, index) => (
-                            <div key={rec.id} className={`p-3 rounded-lg bg-slate-50 ${index > 0 ? 'mt-4' : ''}`}>
-                                <h4 className="font-semibold text-slate-700 mb-2">{`Qualification #${index + 1}`}</h4>
-                                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
+                            <div key={rec.id} className={`p-3 rounded-lg bg-slate-50 ${index > 0 ? 'mt-4' : ''} print:bg-white print:p-0 print:border print:border-slate-200 print:p-2 print:mt-2`}>
+                                <h4 className="font-semibold text-slate-700 mb-2 print:mb-1 print:text-base">{`Qualification #${index + 1}`}</h4>
+                                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4 print:grid-cols-4 print:gap-x-4 print:gap-y-1">
                                     <DetailItem label="Exam" value={rec.examPassed} />
                                     <DetailItem label="Institution" value={rec.institution} />
                                     <DetailItem label="Board/University" value={rec.boardUniv} />
@@ -169,11 +201,11 @@ export const SubmissionDetailView: React.FC<SubmissionDetailViewProps> = ({ data
                     </DetailSection>
 
                     <DetailSection title="Uploaded Documents">
-                        <div className="grid grid-cols-3 gap-6">
+                        <div className="grid grid-cols-3 gap-6 print:grid-cols-4 print:gap-3">
                             {Object.entries(data.documents_urls).map(([key, value]) => (
                                 <div key={key} className="text-center">
-                                    <p className="text-sm font-medium text-slate-500 mb-2">{documentLabels[key as DocumentType]}</p>
-                                    <div className="w-full h-32 border border-slate-200 rounded-md flex items-center justify-center bg-slate-50 overflow-hidden">
+                                    <p className="text-sm font-medium text-slate-500 mb-2 print:mb-1">{documentLabels[key as DocumentType]}</p>
+                                    <div className="w-full h-32 print:h-24 border border-slate-200 rounded-md flex items-center justify-center bg-slate-50 overflow-hidden">
                                         {value ? (
                                             <a href={value} target="_blank" rel="noopener noreferrer" className="block w-full h-full">
                                                 <img src={value} alt={`${key} preview`} className="w-full h-full object-contain p-1" />
@@ -186,13 +218,13 @@ export const SubmissionDetailView: React.FC<SubmissionDetailViewProps> = ({ data
                     </DetailSection>
 
                      <DetailSection title="Declaration">
-                        <p className="text-sm text-slate-600 italic">
+                        <p className="text-sm text-slate-600 italic print:text-xs">
                            {declarationText}
                         </p>
-                         <p className="mt-4 text-slate-900 font-semibold">Status: <span className="font-normal">{data.declaration ? "Agreed" : "Not Agreed"}</span></p>
+                         <p className="mt-4 print:mt-2 text-slate-900 font-semibold">Status: <span className="font-normal">{data.declaration ? "Agreed" : "Not Agreed"}</span></p>
                     </DetailSection>
 
-                    <div className="mt-20 pt-10 flex justify-between text-center text-sm font-semibold text-slate-800">
+                    <div className="mt-20 pt-10 print:mt-12 print:pt-6 flex justify-between text-center text-sm font-semibold text-slate-800">
                         <div>
                             <div className="border-t-2 border-slate-400 w-48 pt-2">Student's Signature</div>
                         </div>

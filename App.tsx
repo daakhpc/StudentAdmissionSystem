@@ -36,6 +36,7 @@ const App: React.FC = () => {
     const [submissions, setSubmissions] = useState<Submission[]>([]);
     const [isFetching, setIsFetching] = useState(false);
     const [fetchError, setFetchError] = useState<string | null>(null);
+    const [autoBackupStatus, setAutoBackupStatus] = useState<string | null>(null);
     
     // Shared state for the admission form (used by public and admin)
     const [verifiedUser, setVerifiedUser] = useState<VerifiedUser | null>(null);
@@ -115,10 +116,45 @@ const App: React.FC = () => {
         setIsLoading(false);
     };
 
-    const handleLogin = (email: string, pass: string) => {
+    const handleBackup = async () => {
+        const { data, error } = await supabase.from('AdmissionTabel').select('*');
+        if (error) throw new Error(`Backup failed: ${error.message}`);
+        if (!data || data.length === 0) throw new Error('No data to back up.');
+
+        const jsonString = JSON.stringify(data, null, 2);
+        const blob = new Blob([jsonString], { type: "application/json" });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.href = url;
+        const date = new Date().toISOString().split('T')[0];
+        link.download = `admission_backup_${date}.json`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+    };
+
+    const handleLogin = async (email: string, pass: string) => {
         if (email === 'ikram.knit@gmail.com' && pass === 'Ikram@123') {
             setAppView('ADMIN_DASHBOARD');
             setLoginError(null);
+            
+            // Automatic daily backup logic
+            const today = new Date().toISOString().split('T')[0];
+            const lastBackupDate = localStorage.getItem('lastBackupDate');
+            
+            if (lastBackupDate !== today) {
+                setAutoBackupStatus('An automatic daily backup is being created and downloaded...');
+                try {
+                    await handleBackup();
+                    localStorage.setItem('lastBackupDate', today);
+                    setAutoBackupStatus('Daily backup downloaded successfully.');
+                } catch (error) {
+                    const message = error instanceof Error ? error.message : 'Unknown error';
+                    setAutoBackupStatus(`Automatic backup failed: ${message}`);
+                }
+            }
+
         } else {
             setLoginError('Invalid email or password.');
         }
@@ -174,24 +210,6 @@ const App: React.FC = () => {
         resetFormState();
     };
 
-    const handleBackup = async () => {
-        const { data, error } = await supabase.from('AdmissionTabel').select('*');
-        if (error) throw new Error(`Backup failed: ${error.message}`);
-        if (!data || data.length === 0) throw new Error('No data to back up.');
-
-        const jsonString = JSON.stringify(data, null, 2);
-        const blob = new Blob([jsonString], { type: "application/json" });
-        const url = URL.createObjectURL(blob);
-        const link = document.createElement("a");
-        link.href = url;
-        const date = new Date().toISOString().split('T')[0];
-        link.download = `admission_backup_${date}.json`;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        URL.revokeObjectURL(url);
-    };
-
     const handleRestore = async (fileContent: string) => {
         let submissionsToRestore: Submission[];
         try {
@@ -216,6 +234,10 @@ const App: React.FC = () => {
         }
         
         await fetchSubmissions();
+    };
+
+    const handleDismissAutoBackupStatus = () => {
+        setAutoBackupStatus(null);
     };
 
 
@@ -258,7 +280,17 @@ const App: React.FC = () => {
                         </div>
                     );
                 }
-                return <AdminPage submissions={submissions} onAddNew={handleAddNew} onView={handleView} onEdit={handleEdit} onDelete={handleDelete} onBackup={handleBackup} onRestore={handleRestore} />;
+                return <AdminPage 
+                    submissions={submissions} 
+                    onAddNew={handleAddNew} 
+                    onView={handleView} 
+                    onEdit={handleEdit} 
+                    onDelete={handleDelete} 
+                    onBackup={handleBackup} 
+                    onRestore={handleRestore}
+                    autoBackupStatus={autoBackupStatus}
+                    onDismissAutoBackupStatus={handleDismissAutoBackupStatus}
+                />;
         }
     };
     
